@@ -1,14 +1,12 @@
 import React from 'react';
-import { expect } from 'chai';
-import { describe, it } from 'mocha';
 import { shallow } from 'enzyme';
 import { Panel } from 'react-bootstrap';
 
 import InfoTooltipWithTrigger from
-  '../../../../javascripts/components/InfoTooltipWithTrigger';
+  '../../../../src/components/InfoTooltipWithTrigger';
 
 import ControlPanelSection from
-  '../../../../javascripts/explore/components/ControlPanelSection';
+  '../../../../src/explore/components/ControlPanelSection';
 
 const defaultProps = {
   children: <div>a child element</div>,
@@ -26,12 +24,12 @@ describe('ControlPanelSection', () => {
   it('is a valid element', () => {
     expect(
       React.isValidElement(<ControlPanelSection {...defaultProps} />),
-    ).to.equal(true);
+    ).toBe(true);
   });
 
   it('renders a Panel component', () => {
     wrapper = shallow(<ControlPanelSection {...defaultProps} />);
-    expect(wrapper.find(Panel)).to.have.length(1);
+    expect(wrapper.find(Panel)).toHaveLength(1);
   });
 
   describe('with optional props', () => {
@@ -41,12 +39,11 @@ describe('ControlPanelSection', () => {
     });
 
     it('renders a label if present', () => {
-      expect(wrapper.find(Panel).dive().text()).to.contain('my label');
+      expect(wrapper.find(Panel).dive().text()).toContain('my label');
     });
 
     it('renders a InfoTooltipWithTrigger if label and tooltip is present', () => {
-      expect(wrapper.find(Panel).dive().find(InfoTooltipWithTrigger))
-        .to.have.length(1);
+      expect(wrapper.find(Panel).dive().find(InfoTooltipWithTrigger)).toHaveLength(1);
     });
   });
 });

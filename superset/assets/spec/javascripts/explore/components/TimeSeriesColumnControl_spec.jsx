@@ -2,11 +2,9 @@
 import React from 'react';
 import { FormControl, OverlayTrigger } from 'react-bootstrap';
 import sinon from 'sinon';
-import { expect } from 'chai';
-import { describe, it, beforeEach } from 'mocha';
 import { shallow } from 'enzyme';
 
-import TimeSeriesColumnControl from '../../../../javascripts/explore/components/controls/TimeSeriesColumnControl';
+import TimeSeriesColumnControl from '../../../../src/explore/components/controls/TimeSeriesColumnControl';
 
 const defaultProps = {
   name: 'x_axis_label',
@@ -23,11 +21,11 @@ describe('SelectControl', () => {
   });
 
   it('renders an OverlayTrigger', () => {
-    expect(wrapper.find(OverlayTrigger)).to.have.lengthOf(1);
+    expect(wrapper.find(OverlayTrigger)).toHaveLength(1);
   });
 
   it('renders an Popover', () => {
     const popOver = shallow(inst.renderPopover());
-    expect(popOver.find(FormControl)).to.have.lengthOf(3);
+    expect(popOver.find(FormControl)).toHaveLength(3);
   });
 });

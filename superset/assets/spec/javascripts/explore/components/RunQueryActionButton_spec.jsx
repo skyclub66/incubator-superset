@@ -1,11 +1,9 @@
 import React from 'react';
-import { expect } from 'chai';
-import { describe, it, beforeEach } from 'mocha';
 import { shallow } from 'enzyme';
 
 import RunQueryActionButton
-  from '../../../../javascripts/SqlLab/components/RunQueryActionButton';
-import Button from '../../../../javascripts/components/Button';
+  from '../../../../src/SqlLab/components/RunQueryActionButton';
+import Button from '../../../../src/components/Button';
 
 describe('RunQueryActionButton', () => {
   let wrapper;
@@ -16,6 +14,7 @@ describe('RunQueryActionButton', () => {
     runQuery: () => {}, // eslint-disable-line
     selectedText: null,
     stopQuery: () => {}, // eslint-disable-line
+    sql: '',
   };
 
   beforeEach(() => {
@@ -25,10 +24,10 @@ describe('RunQueryActionButton', () => {
   it('is a valid react element', () => {
     expect(
       React.isValidElement(<RunQueryActionButton {...defaultProps} />),
-    ).to.equal(true);
+    ).toBe(true);
   });
 
   it('renders a single Button', () => {
-    expect(wrapper.find(Button)).to.have.lengthOf(1);
+    expect(wrapper.find(Button)).toHaveLength(1);
   });
 });

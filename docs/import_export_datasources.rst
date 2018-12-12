@@ -49,12 +49,17 @@ By default, default (null) values will be omitted. Use the ``-d`` flag to includ
 If you want back references to be included (e.g. a column to include the table id
 it belongs to) use the ``-b`` flag.
 
-Alternatively you can export datasources using the UI: ::
+Alternatively, you can export datasources using the UI:
 
-1. Open **Sources** -> **Databases** to export all tables associated to a single or multiple databases. (**Tables** for one or more tables, **Druid Clusters** for clusters, **Druid Datasources** for datasources)
-2. Select the items you would like to export
-3. Click **Actions** -> **Export to YAML**
-4. If you want to import an item that you exported through the UI, you will need to nest it inside its parent element, e.g. a `database` needs to be nested under `databases` a `table` needs to be nested inside a `database` element.
+1. Open **Sources** -> **Databases** to export all tables associated to a
+   single or multiple databases. (**Tables** for one or more tables,
+   **Druid Clusters** for clusters, **Druid Datasources** for datasources)
+#. Select the items you would like to export
+#. Click **Actions** -> **Export to YAML**
+#. If you want to import an item that you exported through the UI, you
+   will need to nest it inside its parent element, e.g. a `database`
+   needs to be nested under `databases` a `table` needs to be
+   nested inside a `database` element.
 
 Exporting the complete supported YAML schema
 --------------------------------------------
@@ -90,7 +95,7 @@ those would be synchronised as well.
 
 
 If you don't supply the sync flag (``-s``) importing will only add and update (override) fields.
-E.g. you can add a ``verbose_name`` to the the column ``ds`` in the table ``random_time_series`` from the example datasets
+E.g. you can add a ``verbose_name`` to the column ``ds`` in the table ``random_time_series`` from the example datasets
 by saving the following YAML to file and then running the ``import_datasources`` command. ::
 
     databases:

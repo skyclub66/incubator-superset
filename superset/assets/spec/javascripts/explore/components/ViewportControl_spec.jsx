@@ -1,15 +1,13 @@
 /* eslint-disable no-unused-expressions */
 import React from 'react';
-import { expect } from 'chai';
-import { describe, it, beforeEach } from 'mocha';
 import { shallow } from 'enzyme';
 import { OverlayTrigger, Label } from 'react-bootstrap';
 
 import ViewportControl from
-  '../../../../javascripts/explore/components/controls/ViewportControl';
+  '../../../../src/explore/components/controls/ViewportControl';
 import TextControl from
-  '../../../../javascripts/explore/components/controls/TextControl';
-import ControlHeader from '../../../../javascripts/explore/components/ControlHeader';
+  '../../../../src/explore/components/controls/TextControl';
+import ControlHeader from '../../../../src/explore/components/ControlHeader';
 
 const defaultProps = {
   value: {
@@ -31,16 +29,16 @@ describe('ViewportControl', () => {
 
   it('renders a OverlayTrigger', () => {
     const controlHeader = wrapper.find(ControlHeader);
-    expect(controlHeader).to.have.lengthOf(1);
-    expect(wrapper.find(OverlayTrigger)).to.have.length(1);
+    expect(controlHeader).toHaveLength(1);
+    expect(wrapper.find(OverlayTrigger)).toHaveLength(1);
   });
 
   it('renders a Popover with 5 TextControl', () => {
     const popOver = shallow(inst.renderPopover());
-    expect(popOver.find(TextControl)).to.have.lengthOf(5);
+    expect(popOver.find(TextControl)).toHaveLength(5);
   });
 
   it('renders a summary in the label', () => {
-    expect(wrapper.find(Label).first().render().text()).to.equal('6° 51\' 8.50" | 31° 13\' 21.56"');
+    expect(wrapper.find(Label).first().render().text()).toBe('6° 51\' 8.50" | 31° 13\' 21.56"');
   });
 });

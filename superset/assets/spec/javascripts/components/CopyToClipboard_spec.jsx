@@ -1,8 +1,6 @@
 import React from 'react';
-import { expect } from 'chai';
-import { describe, it } from 'mocha';
 
-import CopyToClipboard from '../../../javascripts/components/CopyToClipboard';
+import CopyToClipboard from '../../../src/components/CopyToClipboard';
 
 describe('CopyToClipboard', () => {
   const defaultProps = {
@@ -12,6 +10,6 @@ describe('CopyToClipboard', () => {
   it('renders', () => {
     expect(
       React.isValidElement(<CopyToClipboard {...defaultProps} />),
-    ).to.equal(true);
+    ).toBe(true);
   });
 });

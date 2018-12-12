@@ -1,5 +1,4 @@
-from __future__ import with_statement
-
+# pylint: disable=C,R,W
 import logging
 from logging.config import fileConfig
 

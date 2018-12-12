@@ -1,20 +1,17 @@
+# pylint: disable=C,R,W
 """The main config file for Superset
 
 All configuration in this file can be overridden by providing a superset_config
 in your PYTHONPATH as there is a ``from superset_config import *``
 at the end of this file.
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 from collections import OrderedDict
 import imp
 import json
 import os
 import sys
 
+from celery.schedules import crontab
 from dateutil import tz
 from flask_appbuilder.security.manager import AUTH_DB
 
@@ -28,8 +25,6 @@ if 'SUPERSET_HOME' in os.environ:
     DATA_DIR = os.environ['SUPERSET_HOME']
 else:
     DATA_DIR = os.path.join(os.path.expanduser('~'), '.superset')
-if not os.path.exists(DATA_DIR):
-    os.makedirs(DATA_DIR)
 
 # ---------------------------------------------------------
 # Superset specific config
@@ -43,12 +38,13 @@ ROW_LIMIT = 50000
 VIZ_ROW_LIMIT = 10000
 # max rows retrieved by filter select auto complete
 FILTER_SELECT_ROW_LIMIT = 10000
-SUPERSET_WORKERS = 2
-SUPERSET_CELERY_WORKERS = 32
+SUPERSET_WORKERS = 2  # deprecated
+SUPERSET_CELERY_WORKERS = 32  # deprecated
 
 SUPERSET_WEBSERVER_ADDRESS = '0.0.0.0'
 SUPERSET_WEBSERVER_PORT = 8088
-SUPERSET_WEBSERVER_TIMEOUT = 60
+SUPERSET_WEBSERVER_TIMEOUT = 60  # deprecated
+SUPERSET_DASHBOARD_POSITION_DATA_LIMIT = 65535
 EMAIL_NOTIFICATIONS = False
 CUSTOM_SECURITY_MANAGER = None
 SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -165,7 +161,18 @@ LANGUAGES = {
     'zh': {'flag': 'cn', 'name': 'Chinese'},
     'ja': {'flag': 'jp', 'name': 'Japanese'},
     'de': {'flag': 'de', 'name': 'German'},
+    'pt': {'flag': 'pt', 'name': 'Portuguese'},
+    'pt_BR': {'flag': 'br', 'name': 'Brazilian Portuguese'},
+    'ru': {'flag': 'ru', 'name': 'Russian'},
 }
+
+# ---------------------------------------------------
+# Feature flags
+# ---------------------------------------------------
+# Feature flags that are on by default go here. Their
+# values can be overridden by those in super_config.py
+FEATURE_FLAGS = {}
+
 # ---------------------------------------------------
 # Image and file configuration
 # ---------------------------------------------------
@@ -188,6 +195,13 @@ TABLE_NAMES_CACHE_CONFIG = {'CACHE_TYPE': 'null'}
 ENABLE_CORS = False
 CORS_OPTIONS = {}
 
+# Chrome allows up to 6 open connections per domain at a time. When there are more
+# than 6 slices in dashboard, a lot of time fetch requests are queued up and wait for
+# next available socket. PR #5039 is trying to allow domain sharding for Superset,
+# and this feature will be enabled by configuration only (by default Superset
+# doesn't allow cross-domain request).
+SUPERSET_WEBSERVER_DOMAINS = None
+
 # Allowed format types for upload on Database view
 # TODO: Add processing of other spreadsheet formats (xls, xlsx etc)
 ALLOWED_EXTENSIONS = set(['csv'])
@@ -197,6 +211,30 @@ ALLOWED_EXTENSIONS = set(['csv'])
 CSV_EXPORT = {
     'encoding': 'utf-8',
 }
+
+# ---------------------------------------------------
+# Time grain configurations
+# ---------------------------------------------------
+# List of time grains to disable in the application (see list of builtin
+# time grains in superset/db_engine_specs.builtin_time_grains).
+# For example: to disable 1 second time grain:
+# TIME_GRAIN_BLACKLIST = ['PT1S']
+TIME_GRAIN_BLACKLIST = []
+
+# Additional time grains to be supported using similar definitions as in
+# superset/db_engine_specs.builtin_time_grains.
+# For example: To add a new 2 second time grain:
+# TIME_GRAIN_ADDONS = {'PT2S': '2 second'}
+TIME_GRAIN_ADDONS = {}
+
+# Implementation of additional time grains per engine.
+# For example: To implement 2 second time grain on clickhouse engine:
+# TIME_GRAIN_ADDON_FUNCTIONS = {
+#     'clickhouse': {
+#         'PT2S': 'toDateTime(intDiv(toUInt32(toDateTime({col})), 2)*2)'
+#     }
+# }
+TIME_GRAIN_ADDON_FUNCTIONS = {}
 
 # ---------------------------------------------------
 # List of viz_types not allowed in your environment
@@ -244,12 +282,22 @@ ROLLOVER = 'midnight'
 INTERVAL = 1
 BACKUP_COUNT = 30
 
-# Set this API key to enable Mapbox visualizations
-MAPBOX_API_KEY = ''
+# Custom logger for auditing queries. This can be used to send ran queries to a
+# structured immutable store for auditing purposes. The function is called for
+# every query ran, in both SQL Lab and charts/dashboards.
+# def QUERY_LOGGER(database, query, schema=None, user=None, client=None):
+#     pass
 
-# Maximum number of rows returned in the SQL editor
-SQL_MAX_ROW = 1000000
-DISPLAY_SQL_MAX_ROW = 1000
+# Set this API key to enable Mapbox visualizations
+MAPBOX_API_KEY = os.environ.get('MAPBOX_API_KEY', '')
+
+# Maximum number of rows returned from a database
+# in async mode, no more than SQL_MAX_ROW will be returned and stored
+# in the results backend. This also becomes the limit when exporting CSVs
+SQL_MAX_ROW = 100000
+
+# Default row limit for SQL Lab queries
+DEFAULT_SQLLAB_LIMIT = 1000
 
 # Maximum number of tables/views displayed in the dropdown window in SQL Lab.
 MAX_TABLE_NAMES = 3000
@@ -262,27 +310,51 @@ WARNING_MSG = None
 # Default celery config is to use SQLA as a broker, in a production setting
 # you'll want to use a proper broker as specified here:
 # http://docs.celeryproject.org/en/latest/getting-started/brokers/index.html
-"""
-# Example:
+
+
 class CeleryConfig(object):
-  BROKER_URL = 'sqla+sqlite:///celerydb.sqlite'
-  CELERY_IMPORTS = ('superset.sql_lab', )
-  CELERY_RESULT_BACKEND = 'db+sqlite:///celery_results.sqlite'
-  CELERY_ANNOTATIONS = {'tasks.add': {'rate_limit': '10/s'}}
-  CELERYD_LOG_LEVEL = 'DEBUG'
-  CELERYD_PREFETCH_MULTIPLIER = 1
-  CELERY_ACKS_LATE = True
+    BROKER_URL = 'sqla+sqlite:///celerydb.sqlite'
+    CELERY_IMPORTS = (
+        'superset.sql_lab',
+        'superset.tasks',
+    )
+    CELERY_RESULT_BACKEND = 'db+sqlite:///celery_results.sqlite'
+    CELERYD_LOG_LEVEL = 'DEBUG'
+    CELERYD_PREFETCH_MULTIPLIER = 1
+    CELERY_ACKS_LATE = True
+    CELERY_ANNOTATIONS = {
+        'sql_lab.get_sql_results': {
+            'rate_limit': '100/s',
+        },
+        'email_reports.send': {
+            'rate_limit': '1/s',
+            'time_limit': 120,
+            'soft_time_limit': 150,
+            'ignore_result': True,
+        },
+    }
+    CELERYBEAT_SCHEDULE = {
+        'email_reports.schedule_hourly': {
+            'task': 'email_reports.schedule_hourly',
+            'schedule': crontab(minute=1, hour='*'),
+        },
+    }
+
+
 CELERY_CONFIG = CeleryConfig
+
 """
+# Set celery config to None to disable all the above configuration
 CELERY_CONFIG = None
-SQL_CELERY_DB_FILE_PATH = os.path.join(DATA_DIR, 'celerydb.sqlite')
-SQL_CELERY_RESULTS_DB_FILE_PATH = os.path.join(DATA_DIR, 'celery_results.sqlite')
+"""
 
 # static http headers to be served by your Superset server.
-# The following example prevents iFrame from other domains
-# and "clickjacking" as a result
-# HTTP_HEADERS = {'X-Frame-Options': 'SAMEORIGIN'}
-HTTP_HEADERS = {}
+# This header prevents iFrames from other domains and
+# "clickjacking" as a result
+HTTP_HEADERS = {'X-Frame-Options': 'SAMEORIGIN'}
+# If you need to allow iframes from other domains (and are
+# aware of the risks), you can disable this header:
+# HTTP_HEADERS = {}
 
 # The db id here results in selecting this one as a default in SQL Lab
 DEFAULT_DB_ID = None
@@ -310,6 +382,10 @@ CSV_TO_HIVE_UPLOAD_S3_BUCKET = None
 # contain all the external tables
 CSV_TO_HIVE_UPLOAD_DIRECTORY = 'EXTERNAL_HIVE_TABLES/'
 
+# The namespace within hive where the tables created from
+# uploading CSVs will be stored.
+UPLOADED_CSV_HIVE_NAMESPACE = None
+
 # A dictionary of items that gets merged into the Jinja context for
 # SQL Lab. The existing context gets updated with this dictionary,
 # meaning values for existing keys get overwritten by the content of this
@@ -328,6 +404,9 @@ CONFIG_PATH_ENV_VAR = 'SUPERSET_CONFIG_PATH'
 # example: FLASK_APP_MUTATOR = lambda x: x.before_request = f
 FLASK_APP_MUTATOR = None
 
+# Set this to false if you don't want users to be able to request/grant
+# datasource access requests from/to other users.
+ENABLE_ACCESS_REQUEST = False
 
 # smtp server configuration
 EMAIL_NOTIFICATIONS = False  # all the emails are sent using dryrun
@@ -351,6 +430,12 @@ SILENCE_FAB = True
 # It will be appended at the bottom of sql_lab errors.
 TROUBLESHOOTING_LINK = ''
 
+# CSRF token timeout, set to None for a token that never expires
+WTF_CSRF_TIME_LIMIT = 60 * 60 * 24 * 7
+
+# This link should lead to a page with instructions on how to gain access to a
+# Datasource. It will be placed at the bottom of permissions errors.
+PERMISSION_INSTRUCTIONS_LINK = ''
 
 # Integrate external Blueprints to the app by passing them to your
 # configuration. These blueprints will get integrated in the app
@@ -360,6 +445,96 @@ BLUEPRINTS = []
 # URL. This is used to translate internal Hadoop job tracker URL
 # into a proxied one
 TRACKING_URL_TRANSFORMER = lambda x: x  # noqa: E731
+
+# Interval between consecutive polls when using Hive Engine
+HIVE_POLL_INTERVAL = 5
+
+# Allow for javascript controls components
+# this enables programmers to customize certain charts (like the
+# geospatial ones) by inputing javascript in controls. This exposes
+# an XSS security vulnerability
+ENABLE_JAVASCRIPT_CONTROLS = False
+
+# The id of a template dashboard that should be copied to every new user
+DASHBOARD_TEMPLATE_ID = None
+
+# A callable that allows altering the database conneciton URL and params
+# on the fly, at runtime. This allows for things like impersonation or
+# arbitrary logic. For instance you can wire different users to
+# use different connection parameters, or pass their email address as the
+# username. The function receives the connection uri object, connection
+# params, the username, and returns the mutated uri and params objects.
+# Example:
+#   def DB_CONNECTION_MUTATOR(uri, params, username, security_manager):
+#       user = security_manager.find_user(username=username)
+#       if user and user.email:
+#           uri.username = user.email
+#       return uri, params
+#
+# Note that the returned uri and params are passed directly to sqlalchemy's
+# as such `create_engine(url, **params)`
+DB_CONNECTION_MUTATOR = None
+
+# A function that intercepts the SQL to be executed and can alter it.
+# The use case is can be around adding some sort of comment header
+# with information such as the username and worker node information
+#
+#    def SQL_QUERY_MUTATOR(sql, username, security_manager):
+#        dttm = datetime.now().isoformat()
+#        return f"-- [SQL LAB] {username} {dttm}\n{sql}"
+SQL_QUERY_MUTATOR = None
+
+# When not using gunicorn, (nginx for instance), you may want to disable
+# using flask-compress
+ENABLE_FLASK_COMPRESS = True
+
+# Enable / disable scheduled email reports
+ENABLE_SCHEDULED_EMAIL_REPORTS = False
+
+# If enabled, certail features are run in debug mode
+# Current list:
+# * Emails are sent using dry-run mode (logging only)
+SCHEDULED_EMAIL_DEBUG_MODE = False
+
+# Email reports - minimum time resolution (in minutes) for the crontab
+EMAIL_REPORTS_CRON_RESOLUTION = 15
+
+# Email report configuration
+# From address in emails
+EMAIL_REPORT_FROM_ADDRESS = 'reports@superset.org'
+
+# Send bcc of all reports to this address. Set to None to disable.
+# This is useful for maintaining an audit trail of all email deliveries.
+EMAIL_REPORT_BCC_ADDRESS = None
+
+# User credentials to use for generating reports
+# This user should have permissions to browse all the dashboards and
+# slices.
+# TODO: In the future, login as the owner of the item to generate reports
+EMAIL_REPORTS_USER = 'admin'
+EMAIL_REPORTS_SUBJECT_PREFIX = '[Report] '
+
+# The webdriver to use for generating reports. Use one of the following
+# firefox
+#   Requires: geckodriver and firefox installations
+#   Limitations: can be buggy at times
+# chrome:
+#   Requires: headless chrome
+#   Limitations: unable to generate screenshots of elements
+EMAIL_REPORTS_WEBDRIVER = 'firefox'
+
+# Window size - this will impact the rendering of the data
+WEBDRIVER_WINDOW = {
+    'dashboard': (1600, 2000),
+    'slice': (3000, 1200),
+}
+
+# Any config options to be passed as-is to the webdriver
+WEBDRIVER_CONFIGURATION = {}
+
+# The base URL to query for accessing the user interface
+WEBDRIVER_BASEURL = 'http://0.0.0.0:8080/'
+
 
 try:
     if CONFIG_PATH_ENV_VAR in os.environ:

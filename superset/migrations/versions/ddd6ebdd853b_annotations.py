@@ -42,7 +42,7 @@ def upgrade():
         sa.Column('created_by_fk', sa.Integer(), nullable=True),
         sa.ForeignKeyConstraint(['changed_by_fk'], ['ab_user.id'], ),
         sa.ForeignKeyConstraint(['created_by_fk'], ['ab_user.id'], ),
-        sa.ForeignKeyConstraint(['layer_id'], [u'annotation_layer.id'], ),
+        sa.ForeignKeyConstraint(['layer_id'], ['annotation_layer.id'], ),
         sa.PrimaryKeyConstraint('id')
     )
     op.create_index(

@@ -1,9 +1,4 @@
 """Unit tests for Superset"""
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 import json
 import unittest
 
@@ -11,8 +6,10 @@ import yaml
 
 from superset import db
 from superset.connectors.druid.models import (
-     DruidColumn, DruidDatasource, DruidMetric)
+    DruidColumn, DruidDatasource, DruidMetric,
+)
 from superset.connectors.sqla.models import SqlaTable, SqlMetric, TableColumn
+from superset.utils.core import get_main_database
 from .base_tests import SupersetTestCase
 
 DBREF = 'dict_import__export_test'
@@ -22,7 +19,6 @@ ID_PREFIX = 20000
 
 class DictImportExportTests(SupersetTestCase):
     """Testing export import functionality for dashboards"""
-
     def __init__(self, *args, **kwargs):
         super(DictImportExportTests, self).__init__(*args, **kwargs)
 
@@ -53,7 +49,7 @@ class DictImportExportTests(SupersetTestCase):
         params = {DBREF: id, 'database_name': database_name}
 
         dict_rep = {
-            'database_id': self.get_main_database(db.session).id,
+            'database_id': get_main_database(db.session).id,
             'table_name': name,
             'schema': schema,
             'id': id,
@@ -81,12 +77,12 @@ class DictImportExportTests(SupersetTestCase):
         cluster_name = 'druid_test'
         params = {DBREF: id, 'database_name': cluster_name}
         dict_rep = {
-          'cluster_name': cluster_name,
-          'datasource_name': name,
-          'id': id,
-          'params': json.dumps(params),
-          'columns': [{'column_name': c} for c in cols_names],
-          'metrics': [{'metric_name': c} for c in metric_names],
+            'cluster_name': cluster_name,
+            'datasource_name': name,
+            'id': id,
+            'params': json.dumps(params),
+            'columns': [{'column_name': c} for c in cols_names],
+            'metrics': [{'metric_name': c} for c in metric_names],
         }
 
         datasource = DruidDatasource(
@@ -180,12 +176,12 @@ class DictImportExportTests(SupersetTestCase):
         imported_table = SqlaTable.import_from_dict(db.session, dict_table)
         db.session.commit()
         table_over, dict_table_over = self.create_table(
-                'table_override', id=ID_PREFIX + 3,
-                cols_names=['new_col1', 'col2', 'col3'],
-                metric_names=['new_metric1'])
+            'table_override', id=ID_PREFIX + 3,
+            cols_names=['new_col1', 'col2', 'col3'],
+            metric_names=['new_metric1'])
         imported_over_table = SqlaTable.import_from_dict(
-                db.session,
-                dict_table_over)
+            db.session,
+            dict_table_over)
         db.session.commit()
 
         imported_over = self.get_table(imported_over_table.id)
@@ -289,8 +285,8 @@ class DictImportExportTests(SupersetTestCase):
             cols_names=['new_col1', 'col2', 'col3'],
             metric_names=['new_metric1'])
         imported_over_cluster = DruidDatasource.import_from_dict(
-                db.session,
-                table_over_dict)
+            db.session,
+            table_over_dict)
         db.session.commit()
         imported_over = self.get_datasource(imported_over_cluster.id)
         self.assertEquals(imported_cluster.id, imported_over.id)
